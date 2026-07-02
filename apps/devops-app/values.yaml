@@ -1,0 +1,36 @@
+replicaCount: 2
+
+image:
+  repository: 172.31.9.119:30500/devops-gitops-app
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8000
+
+ingress:
+  enabled: true
+  className: traefik
+  hosts:
+    - host: ""
+      paths:
+        - path: /
+          pathType: Prefix
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 300m
+    memory: 256Mi
+
+serviceMonitor:
+  enabled: true
+  path: /metrics
+  interval: 30s
