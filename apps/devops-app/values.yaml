@@ -14,7 +14,7 @@ service:
   targetPort: 8000
 
 ingress:
-  enabled: true
+  enabled: false
   className: traefik
   hosts:
     - host: ""
@@ -31,6 +31,6 @@ resources:
     memory: 256Mi
 
 serviceMonitor:
-  enabled: true
+  enabled: false
   path: /metrics
   interval: 30s
