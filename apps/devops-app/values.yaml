@@ -1,7 +1,7 @@
 replicaCount: 2
 
 image:
-  repository: 172.31.9.119:30500/devops-gitops-app
+  repository: localhost:30500/devops-gitops-app
   tag: "0.1.0"
   pullPolicy: IfNotPresent
 
