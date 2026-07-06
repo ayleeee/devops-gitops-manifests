@@ -2,8 +2,7 @@
 
 # EC2 k3s GitOps CI/CD Platform
 
-AWS EC2 위에 단일 노드 k3s 클러스터를 구성했습니다.
-Jenkins, Helm, ArgoCD, private container registry를 연결했습니다.
+AWS EC2 위에 단일 노드 k3s 클러스터를 구성하여 Jenkins, Helm, ArgoCD, Private Container Registry를 연결했습니다.
 애플리케이션 배포 흐름은 GitOps 방식으로 자동화했습니다.
 
 이 README는 구성 과정에서 알게 된 내용을 정리한 문서입니다.
