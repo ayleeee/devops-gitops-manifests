@@ -2,32 +2,25 @@
 
 # EC2 k3s GitOps CI/CD Platform
 
-AWS EC2 위에 단일 노드 k3s 클러스터를 구성하여 Jenkins, Helm, ArgoCD, Private Container Registry를 연결했습니다.
-애플리케이션 배포 흐름은 GitOps 방식으로 자동화했습니다.
+AWS EC2 위에 단일 노드 k3s 클러스터를 구축하고, Jenkins·Helm·ArgoCD·Private Container Registry를 연동하여 애플리케이션 배포 전 과정을 GitOps 방식으로 자동화한 프로젝트입니다. 이 README는 구축 과정에서 정리한 내용을 바탕으로, 동일한 구조를 재현할 수 있도록 명령어와 검증 방법을 함께 기록했습니다.
 
-이 README는 구성 과정에서 알게 된 내용을 정리한 문서입니다.
-같은 구조를 만들 때 참고할 수 있도록 명령어와 확인 방법을 함께 남겼습니다.
-
-이 프로젝트의 목적은 GitOps의 흐름을 직접 이해하는 것입니다.
-작은 구조로 먼저 만들고 경험해보아야 큰 구조에도 쉽게 적응할 수 있을 것이라고 생각했습니다. 
+프로젝트의 목적은 GitOps 흐름을 직접 구성해보며 그 동작 원리를 체득하는 데 있습니다. 
+작은 규모로 먼저 구현하고 경험을 쌓아야, 이후 더 큰 규모의 인프라에도 무리 없이 적용할 수 있다고 판단했습니다.
 
 ## 구성하면서 알게 된 점
 
-GitOps는 여러 컴포넌트가 연결된 배포 운영 방식입니다.
+GitOps는 여러 컴포넌트가 유기적으로 연결되어 작동하는 배포 운영 방식입니다.
 
-Jenkins는 이미지를 빌드하는 역할을 맡습니다.
-Registry는 빌드된 이미지를 저장하는 역할을 맡습니다.
-Helm chart는 Kubernetes 리소스를 선언하는 역할을 맡습니다.
-GitOps repository는 배포하려는 상태를 기록하는 역할을 맡습니다.
-ArgoCD는 Git의 상태를 클러스터에 반영하는 역할을 맡습니다.
-Kubernetes namespace는 컴포넌트의 책임 범위를 나누는 역할을 맡습니다.
 
-EC2 한 대와 k3s를 선택한 이유도 이 흐름을 잘 보기 위해서입니다.
-관리형 Kubernetes를 바로 사용하면 편리합니다.
-작은 클러스터를 직접 구성하면 기본 요소가 더 잘 보입니다.
-Docker 권한, kubeconfig, NodePort, Ingress, namespace, Helm release를 직접 확인할 수 있습니다.
-규모는 작게 잡았습니다.
-배포 흐름은 실제 GitOps 구조와 같게 가져갔습니다.
+* Jenkins — 애플리케이션 이미지를 빌드
+* Registry — 빌드된 이미지를 저장
+* Helm Chart — Kubernetes 리소스를 선언적으로 정의
+* GitOps Repository — 배포하고자 하는 상태(desired state)를 기록
+* ArgoCD — Git에 기록된 상태를 클러스터에 반영
+* Kubernetes Namespace — 컴포넌트별 책임 범위를 분리
+
+
+EC2 한 대와 k3s를 선택한 것도 이 흐름을 명확하게 관찰하기 위한 선택이었습니다. 관리형 Kubernetes 서비스를 사용하면 편리하지만, 많은 부분이 추상화되어 가려집니다. 반면 작은 클러스터를 직접 구성하면 Docker 권한, kubeconfig, NodePort, Ingress, Namespace, Helm Release 같은 기본 요소들을 하나하나 눈으로 확인할 수 있습니다. 규모는 최소화했지만, 배포 흐름 자체는 실제 프로덕션 GitOps 구조와 동일하게 설계했습니다.
 
 ## 구현 범위
 
@@ -151,10 +144,7 @@ helm version
 Docker -> k3s -> Helm
 ```
 
-Docker는 Jenkins Pipeline에서 이미지 빌드와 push에 사용합니다.
-k3s는 Kubernetes 클러스터를 구성합니다.
-Helm은 k3s 위의 애플리케이션을 설치하고 관리합니다.
-이 순서로 설치해야 이미지 빌드, 클러스터 구성, 차트 배포 흐름을 차례대로 확인할 수 있습니다.
+Docker는 Jenkins Pipeline에서 이미지 빌드와 push에 사용하고, k3s는 Kubernetes 클러스터를 구성하며, Helm은 그 위에서 애플리케이션을 설치·관리하는 역할을 맡습니다. 이 순서로 설치해야 이미지 빌드, 클러스터 구성, 차트 배포로 이어지는 흐름을 순차적으로 확인할 수 있습니다.
 
 ## 2. Namespace 구성
 
@@ -274,10 +264,7 @@ kubectl apply -f argocd/devops-app-application.yaml
 kubectl get applications -n gitops
 ```
 
-`argocd/devops-app-application.yaml`은 이 repository의 Helm chart를 바라봅니다.
-GitOps에서는 이 repository가 배포 기준점이 됩니다.
-클러스터에서 직접 리소스를 수정하면 Git의 상태와 달라집니다.
-ArgoCD는 이 차이를 감지합니다.
+argocd/devops-app-application.yaml은 이 Repository의 Helm Chart를 바라보도록 설정되어 있습니다. GitOps 구조에서는 이 Repository가 곧 배포의 기준점이 됩니다. 클러스터에서 리소스를 직접 수정하더라도 Git에 기록된 상태와 어긋나면, ArgoCD가 그 차이를 감지해 원래 상태로 되돌립니다.
 
 ```yaml
 source:
@@ -292,9 +279,7 @@ syncPolicy:
     selfHeal: true
 ```
 
-`selfHeal`은 클러스터의 수동 변경을 되돌리는 데 사용됩니다.
-`prune`은 Git에서 제거된 리소스를 클러스터에서도 제거하는 데 사용됩니다.
-다른 계정으로 이식할 때는 `repoURL`을 본인 repository 주소로 바꿉니다.
+selfHeal은 클러스터에서 발생한 수동 변경을 되돌리는 데, prune은 Git에서 제거된 리소스를 클러스터에서도 함께 제거하는 데 사용됩니다. 다른 계정에서 재사용할 때는 repoURL을 본인 Repository 주소로 변경하면 됩니다.
 
 ## 7. Jenkins Pipeline Flow
 
@@ -311,14 +296,9 @@ syncPolicy:
 8. ArgoCD detects Git change and syncs the application
 ```
 
-Pipeline에서 중요한 점은 Kubernetes API를 직접 호출하지 않는 것입니다.
-Pipeline은 GitOps repository만 변경합니다.
-배포 실행은 ArgoCD가 담당합니다.
-이 구조에서는 배포 이력이 Git commit으로 남습니다.
-문제가 생기면 어떤 image tag가 배포되었는지 Git history에서 확인할 수 있습니다.
-그래서 `latest` tag 대신 명시적인 version tag를 사용했습니다.
+이 Pipeline의 핵심은 Kubernetes API를 직접 호출하지 않는다는 점입니다. Pipeline은 오직 GitOps Repository만 변경하며, 실제 배포 실행은 ArgoCD가 전담합니다. 이 구조 덕분에 배포 이력이 Git commit으로 고스란히 남고, 문제가 발생했을 때 어떤 이미지 태그가 배포되었는지 Git history에서 바로 확인할 수 있습니다. 그런 이유로 latest 태그 대신 명시적인 버전 태그를 사용했습니다.
 
-Pipeline에서 주로 사용하는 parameter는 아래와 같습니다.
+Pipeline에서 주로 사용하는 파라미터는 다음과 같습니다.
 
 | Parameter | Example | Description |
 |---|---|---|
@@ -331,9 +311,7 @@ Pipeline에서 주로 사용하는 parameter는 아래와 같습니다.
 
 ## 8. Helm Chart
 
-애플리케이션은 Helm chart로 배포합니다.
-Helm chart는 Kubernetes manifest를 템플릿으로 관리합니다.
-이미지 repository와 tag는 `values.yaml`에서 관리합니다.
+애플리케이션은 Helm Chart로 배포되며, Kubernetes manifest를 템플릿 형태로 관리합니다. 이미지 Repository와 태그는 values.yaml에서 관리합니다.
 
 ```bash
 helm template devops-app ./apps/devops-app -n devops-app
@@ -355,24 +333,11 @@ ingress:
 serviceMonitor:
   enabled: false
 ```
+serviceMonitor.enabled는 기본값을 false로 두었으며, Prometheus Operator CRD를 설치한 뒤 true로 전환할 수 있습니다.
 
-`serviceMonitor.enabled`는 기본값을 `false`로 두었습니다.
-Prometheus Operator CRD를 설치한 뒤 `true`로 바꿀 수 있습니다.
+Deployment 템플릿에는 헬스체크가 포함되어 있습니다. readinessProbe와 livenessProbe 모두 /health endpoint를 확인하며, Service는 Pod label selector를 기준으로 트래픽을 전달합니다. Ingress는 Traefik을 통해 외부 HTTP 요청을 Service로 라우팅합니다. Service 자체는 ClusterIP로 구성했고, 외부 접근은 Ingress가 전담합니다.
 
-Deployment template에는 health check가 포함되어 있습니다.
-`readinessProbe`는 `/health` endpoint를 확인합니다.
-`livenessProbe`도 `/health` endpoint를 확인합니다.
-Service는 Pod label selector를 기준으로 트래픽을 전달합니다.
-Ingress는 Traefik을 통해 외부 HTTP 요청을 Service로 전달합니다.
-Service는 `ClusterIP`로 구성했습니다.
-외부 접근은 Ingress가 담당합니다.
-
-resources 설정도 values에서 관리합니다.
-작은 인스턴스에서는 resource limit이 필요합니다.
-Jenkins와 ArgoCD가 함께 실행되기 때문입니다.
-Pod가 과도하게 메모리를 사용하면 노드 전체가 느려질 수 있습니다.
-`requests`는 스케줄링 기준으로 사용됩니다.
-`limits`는 컨테이너가 사용할 수 있는 최대 자원을 제한합니다.
+리소스 설정 역시 values에서 관리합니다. 작은 인스턴스 위에서 Jenkins와 ArgoCD가 함께 실행되기 때문에 resource limit이 특히 중요했습니다. Pod가 메모리를 과도하게 점유하면 노드 전체 성능 저하로 이어질 수 있어서, requests는 스케줄링 기준으로, limits는 컨테이너가 사용할 수 있는 최대 자원을 제한하는 용도로 설정했습니다.
 
 ## 9. Verification
 
@@ -444,32 +409,28 @@ docker ps
 
 ### ArgoCD가 Missing 상태일 때
 
-먼저 Application event를 확인합니다.
-그 다음 chart rendering을 확인합니다.
+Application 이벤트를 먼저 확인한 뒤, Chart 렌더링 결과를 확인합니다.
 
 ```bash
 kubectl describe application devops-app -n gitops
 helm template devops-app ./apps/devops-app -n devops-app
 ```
 
-ServiceMonitor CRD가 없으면 배포가 실패할 수 있습니다.
-이 경우 `serviceMonitor.enabled=true`가 원인일 수 있습니다.
-Prometheus Operator를 설치하기 전에는 `false`로 둡니다.
-CRD가 없는 상태에서 ServiceMonitor를 배포하면 ArgoCD sync가 실패할 수 있습니다.
+ServiceMonitor CRD가 설치되어 있지 않으면 배포가 실패할 수 있습니다. 이 경우 원인은 대부분 serviceMonitor.enabled=true 설정입니다. Prometheus Operator를 설치하기 전까지는 이 값을 false로 유지해야 합니다. CRD가 없는 상태에서 ServiceMonitor가 배포되면 ArgoCD sync 자체가 실패할 수 있습니다.
 
-### EC2가 너무 느릴 때
+### EC2가 느려질 때
 
-메모리를 먼저 확인합니다.
+메모리 사용량을 가장 먼저 확인합니다.
 
 ```bash
 free -h
 kubectl get pods -A
 ```
-사용한 솔루션들이 메모리를 많이 사용하기에 관리가 필요합니다. 
+여러 솔루션이 하나의 노드에서 동시에 메모리를 점유하기 때문에, 지속적인 리소스 모니터링이 필요합니다.
 
 ## 11. How to Reuse This Project
 
-다른 환경으로 옮길 때는 아래 항목을 바꾸면 됩니다.
+다른 환경으로 이식할 때는 다음 항목을 변경하면 됩니다.
 
 1. 이 repository를 fork하거나 새 repository로 복사합니다.
 2. `argocd/devops-app-application.yaml`의 `repoURL`을 본인 GitOps repository 주소로 변경합니다.
@@ -492,7 +453,8 @@ kubectl get pods -A
 - Jenkins agent를 Docker socket 방식에서 Kaniko 또는 BuildKit 방식으로 개선
 - Blue/Green 또는 Canary 배포 전략 추가
 
-안정적인 운영을 위해 모니터링 방안을 추가하고, 보안을 강화하고자 합니다. 
+안정적인 운영을 위해 모니터링 방안을 추가하고, 보안을 강화하는 방향으로 발전시키고자 합니다.
+OpenSource 솔루션 중 사용 가능한 내용을 추리고 더해갈 것입니다.
 
 ## Related Repository
 
