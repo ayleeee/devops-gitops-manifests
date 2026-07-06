@@ -30,6 +30,50 @@ Docker 권한, kubeconfig, NodePort, Ingress, namespace, Helm release를 직접 
 규모는 작게 잡았습니다.
 배포 흐름은 실제 GitOps 구조와 같게 가져갔습니다.
 
+## 기술적으로 확인한 부분
+
+GitOps에서는 Git repository가 배포 기준점이 됩니다.
+클러스터에서 직접 리소스를 수정하면 Git의 상태와 클러스터 상태가 달라집니다.
+ArgoCD는 이 차이를 감지합니다.
+자동 동기화를 켜면 ArgoCD가 Git의 상태를 다시 클러스터에 반영합니다.
+`selfHeal`은 클러스터의 수동 변경을 되돌리는 데 사용됩니다.
+`prune`은 Git에서 제거된 리소스를 클러스터에서도 제거하는 데 사용됩니다.
+
+Jenkins는 애플리케이션 코드를 기준으로 이미지를 만듭니다.
+Jenkins는 이미지를 registry에 push합니다.
+Jenkins는 Kubernetes 리소스를 직접 수정하지 않습니다.
+Jenkins는 GitOps repository의 Helm values만 수정합니다.
+이렇게 나누면 CI와 CD의 책임이 분리됩니다.
+
+Helm chart는 Kubernetes manifest를 템플릿으로 관리합니다.
+이미지 repository와 tag는 `values.yaml`에서 관리합니다.
+Jenkins Pipeline은 배포할 이미지 tag만 변경합니다.
+ArgoCD는 변경된 chart 값을 기준으로 배포를 수행합니다.
+이미지 tag를 바꾸면 어떤 버전이 배포되었는지 추적하기 쉽습니다.
+`latest` tag만 사용하면 배포 이력을 확인하기 어렵습니다.
+
+애플리케이션 Service는 `ClusterIP`로 구성했습니다.
+클러스터 내부 통신은 Service를 통해 처리됩니다.
+외부 HTTP 접근은 Traefik Ingress를 통해 처리됩니다.
+Jenkins는 NodePort로 열었습니다.
+ArgoCD는 기본적으로 외부에 열지 않았습니다.
+
+Deployment에는 readiness probe를 넣었습니다.
+readiness probe는 트래픽을 받을 준비가 되었는지 확인합니다.
+Deployment에는 liveness probe도 넣었습니다.
+liveness probe는 컨테이너가 정상 상태인지 확인합니다.
+
+`resources.requests`와 `resources.limits`를 설정했습니다.
+`requests`는 스케줄링 기준이 됩니다.
+`limits`는 컨테이너가 사용할 수 있는 최대 자원을 제한합니다.
+단일 노드에서는 이 설정이 더 중요합니다.
+
+`/metrics` endpoint를 추가했습니다.
+Prometheus가 수집할 수 있는 형식으로 metric을 노출했습니다.
+ServiceMonitor manifest는 조건부로 생성되도록 구성했습니다.
+Prometheus Operator CRD가 없으면 ServiceMonitor를 비활성화해야 합니다.
+CRD가 없는 상태에서 ServiceMonitor를 배포하면 ArgoCD sync가 실패할 수 있습니다.
+
 ## 구현 범위
 
 - EC2 한 대에서 Kubernetes 기반 CI/CD 환경 구성
@@ -102,6 +146,8 @@ k3s devops-app namespace
 | CD | ArgoCD | Git repository 상태를 기준으로 클러스터를 자동 동기화 |
 | Ingress | Traefik | k3s 기본 Ingress Controller를 활용해 외부 HTTP 진입점 구성 |
 | Monitoring-ready | Prometheus format metrics | 애플리케이션 metric 수집 구조로 확장할 수 있도록 `/metrics` 제공 |
+| Health Check | Kubernetes probes | readiness와 liveness를 분리해 배포 상태 확인 |
+| Resource Control | requests / limits | 단일 노드에서 Pod 자원 사용량을 제한 |
 
 ## EC2 사용 사양
 
@@ -304,6 +350,12 @@ syncPolicy:
 8. ArgoCD detects Git change and syncs the application
 ```
 
+Pipeline에서 중요한 점은 Kubernetes API를 직접 호출하지 않는 것입니다.
+Pipeline은 GitOps repository만 변경합니다.
+배포 실행은 ArgoCD가 담당합니다.
+이 구조에서는 배포 이력이 Git commit으로 남습니다.
+문제가 생기면 어떤 image tag가 배포되었는지 Git history에서 확인할 수 있습니다.
+
 Pipeline에서 주로 사용하는 parameter는 아래와 같습니다.
 
 | Parameter | Example | Description |
@@ -342,6 +394,17 @@ serviceMonitor:
 
 `serviceMonitor.enabled`는 기본값을 `false`로 두었습니다.
 Prometheus Operator CRD를 설치한 뒤 `true`로 바꿀 수 있습니다.
+
+Deployment template에는 health check가 포함되어 있습니다.
+`readinessProbe`는 `/health` endpoint를 확인합니다.
+`livenessProbe`도 `/health` endpoint를 확인합니다.
+Service는 Pod label selector를 기준으로 트래픽을 전달합니다.
+Ingress는 Traefik을 통해 외부 HTTP 요청을 Service로 전달합니다.
+
+resources 설정도 values에서 관리합니다.
+작은 인스턴스에서는 resource limit이 필요합니다.
+Jenkins와 ArgoCD가 함께 실행되기 때문입니다.
+Pod가 과도하게 메모리를 사용하면 노드 전체가 느려질 수 있습니다.
 
 ## 9. Verification
 
